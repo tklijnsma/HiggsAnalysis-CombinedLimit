@@ -95,8 +95,8 @@ def doRenameNuisance(datacard, args):
     if channel != "*": cchannel = re.compile(channel)
     opts = args[5:]
     for lsyst,nofloat,pdf0,args0,errline0 in datacard.systs[:]:
-        if lsyst == oldname:
-            lsystnew = newname
+        lsystnew = re.sub("^"+oldname+"$",newname,lsyst)
+            if lsystnew != lsyst:    
             found = False
             errline2 = dict([(b,dict([(p,0) for p in datacard.exp[b]])) for b in datacard.bins])
             for lsyst2,nofloat2,pdf2,args2,errline2b in datacard.systs:
