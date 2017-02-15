@@ -81,6 +81,9 @@ protected:
   // utilities
   /// for each RooRealVar, set a range 'box' from the PL profiling all other parameters
   void doBox(RooAbsReal &nll, double cl, const char *name="box", bool commitPoints=true) ;
+
+  void saveResult(RooFitResult &res);
+
 };
 
 
