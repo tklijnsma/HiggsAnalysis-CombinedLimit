@@ -841,74 +841,81 @@ void Combine::run(TString hlfFile, const std::string &dataset, double &limit, do
     algo->setNToys(nToys);
 
     for (iToy = 1; iToy <= nToys; ++iToy) {
-      algo->setToyNumber(iToy-1);
-      RooAbsData *absdata_toy = 0;
-      if (readToysFromHere == 0) {
-	w->loadSnapshot("clean");
-	if (verbose > 3) utils::printPdf(genPdf);
-	if (withSystematics && !toysNoSystematics_) {
-	  if (systDs) {
-	  	if (systDs->numEntries()>=iToy) *vars = *systDs->get(iToy-1);
-	  }
-          if (toysFrequentist_) w->saveSnapshot("clean", w->allVars());
-	  if (verbose > 3) utils::printPdf(genPdf);
-	}
-        if (POI->find("r")) {
-          if (expectSignal_) ((RooRealVar*)POI->find("r"))->setVal(expectSignal_);
-        }
-	std::cout << "Generate toy " << iToy << "/" << nToys << std::endl;
-	if (isExtended) {
-          if (newGen_) {
-            absdata_toy = newToyMC.generate(weightVar_); // as simple as that
-          } else if (unbinned_) {
-    	      absdata_toy = genPdf->generate(*observables,RooFit::Extended());
-          } else if (generateBinnedWorkaround_) {
-              std::auto_ptr<RooDataSet> unbinn(genPdf->generate(*observables,RooFit::Extended()));
-              absdata_toy = new RooDataHist("toy","binned toy", *observables, *unbinn);
-          } else {
-    	      absdata_toy = genPdf->generateBinned(*observables,RooFit::Extended());
-          }
-	} else {
-	  RooDataSet *data_toy = genPdf->generate(*observables,1);
-	  absdata_toy = data_toy;
-	}
-      } else {
-	absdata_toy = dynamic_cast<RooAbsData *>(readToysFromHere->Get(TString::Format("toys/toy_%d",iToy)));
-	if (absdata_toy == 0) {
-	  std::cerr << "Toy toy_"<<iToy<<" not found in " << readToysFromHere->GetName() << ". List follows:\n";
-	  readToysFromHere->ls();
-	  return;
-	}
-        if (toysFrequentist_ && newGen_ && mc->GetGlobalObservables()) {
-            RooAbsCollection *snap = dynamic_cast<RooAbsCollection *>(readToysFromHere->Get(TString::Format("toys/toy_%d_snapshot",iToy)));
-            if (!snap) {
-                std::cerr << "Snapshot of global observables toy_"<<iToy<<"_snapshot not found in " << readToysFromHere->GetName() << ". List follows:\n";
+        algo->setToyNumber(iToy-1);
+        RooAbsData *absdata_toy = 0;
+        if (readToysFromHere == 0) {
+            w->loadSnapshot("clean");
+            if (verbose > 3) utils::printPdf(genPdf);
+            if (withSystematics && !toysNoSystematics_) {
+                if (systDs) {
+                if (systDs->numEntries()>=iToy) *vars = *systDs->get(iToy-1);
+                }
+                if (toysFrequentist_) w->saveSnapshot("clean", w->allVars());
+                if (verbose > 3) utils::printPdf(genPdf);
+                }
+            if (POI->find("r")) {
+                if (expectSignal_) ((RooRealVar*)POI->find("r"))->setVal(expectSignal_);
+                }
+            std::cout << "Generate toy " << iToy << "/" << nToys << std::endl;
+            if (isExtended) {
+                if (newGen_) {
+                    absdata_toy = newToyMC.generate(weightVar_); // as simple as that
+                    }
+                else if (unbinned_) {
+                    absdata_toy = genPdf->generate(*observables,RooFit::Extended());
+                    }
+                else if (generateBinnedWorkaround_) {
+                    std::auto_ptr<RooDataSet> unbinn(genPdf->generate(*observables,RooFit::Extended()));
+                    absdata_toy = new RooDataHist("toy","binned toy", *observables, *unbinn);
+                    }
+                else {
+                    absdata_toy = genPdf->generateBinned(*observables,RooFit::Extended());
+                    }
+                }
+            else {
+                RooDataSet *data_toy = genPdf->generate(*observables,1);
+                absdata_toy = data_toy;
+                }
+            }
+        else {
+            absdata_toy = dynamic_cast<RooAbsData *>(readToysFromHere->Get(TString::Format("toys/toy_%d",iToy)));
+            if (absdata_toy == 0) {
+                std::cerr << "Toy toy_"<<iToy<<" not found in " << readToysFromHere->GetName() << ". List follows:\n";
                 readToysFromHere->ls();
                 return;
+                }
+            if (toysFrequentist_ && newGen_ && mc->GetGlobalObservables()) {
+                RooAbsCollection *snap = dynamic_cast<RooAbsCollection *>(readToysFromHere->Get(TString::Format("toys/toy_%d_snapshot",iToy)));
+                if (!snap) {
+                    std::cerr << "Snapshot of global observables toy_"<<iToy<<"_snapshot not found in " << readToysFromHere->GetName() << ". List follows:\n";
+                    readToysFromHere->ls();
+                    return;
+                    }
+                vars->assignValueOnly(*snap);
+                w->saveSnapshot("clean", w->allVars());
+                }
             }
-            vars->assignValueOnly(*snap);
-            w->saveSnapshot("clean", w->allVars());
+
+        if (verbose > (isExtended ? 3 : 2)) utils::printRAD(absdata_toy);
+        w->loadSnapshot("clean");
+        //if (verbose > 1) utils::printPdf(w, "model_b");
+        if (mklimit(w,mc,mc_bonly,*absdata_toy,limit,limitErr)) {
+            commitPoint(0,g_quantileExpected_);//tree->Fill();
+            ++nLimits;
+            expLimit += limit; 
+            limitHistory.push_back(limit);
+            }
+        if (saveToys_) {
+            writeToysHere->WriteTObject(absdata_toy, TString::Format("toy_%d", iToy));
+            if (toysFrequentist_ && newGen_ && mc->GetGlobalObservables()) { 
+                RooAbsCollection *snap = mc->GetGlobalObservables()->snapshot();
+                writeToysHere->WriteTObject(snap, TString::Format("toy_%d_snapshot", iToy));
+                // to be seen whether I can delete it or not
+                }
+            }
+        delete absdata_toy;
         }
-      }
-      if (verbose > (isExtended ? 3 : 2)) utils::printRAD(absdata_toy);
-      w->loadSnapshot("clean");
-      //if (verbose > 1) utils::printPdf(w, "model_b");
-      if (mklimit(w,mc,mc_bonly,*absdata_toy,limit,limitErr)) {
-	commitPoint(0,g_quantileExpected_);//tree->Fill();
-	++nLimits;
-	expLimit += limit; 
-        limitHistory.push_back(limit);
-      }
-      if (saveToys_) {
-	writeToysHere->WriteTObject(absdata_toy, TString::Format("toy_%d", iToy));
-        if (toysFrequentist_ && newGen_ && mc->GetGlobalObservables()) { 
-            RooAbsCollection *snap = mc->GetGlobalObservables()->snapshot();
-            writeToysHere->WriteTObject(snap, TString::Format("toy_%d_snapshot", iToy));
-            // to be seen whether I can delete it or not
-        }
-      }
-      delete absdata_toy;
-    }
+
     if (weightVar_) delete weightVar_;
     expLimit /= nLimits;
     double rms = 0;
