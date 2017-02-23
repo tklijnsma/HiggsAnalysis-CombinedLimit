@@ -2,6 +2,8 @@
 #include <stdexcept>
 #include <cmath>
 
+#include "TFile.h"
+
 #include "TMath.h"
 #include "RooArgSet.h"
 #include "RooArgList.h"
@@ -154,7 +156,36 @@ bool MultiDimFit::runSpecific(RooWorkspace *w, RooStats::ModelConfig *mc_s, RooS
     std::auto_ptr<RooFitResult> res;
     if (verbose <= 3) RooAbsReal::setEvalErrorLoggingMode(RooAbsReal::CountErrors);
     if ( !skipInitialFit_){
-        res.reset(doFit(pdf, data, ((algo_ == Singles || algo_ == Impact) ? poiList_ : RooArgList()), constrainCmdArg, false, 1, true, false));
+
+        // res.reset(doFit(pdf, data, ((algo_ == Singles || algo_ == Impact) ? poiList_ : RooArgList()), constrainCmdArg, false, 1, true, false));
+
+
+        // doHesse set to true; The "clean" way would be a command line option!
+
+        res.reset(doFit(
+            pdf,
+            data,
+            ((algo_ == Singles || algo_ == Impact) ? poiList_ : RooArgList()),
+            constrainCmdArg,
+            /*false*/ true ,
+            1,
+            true,
+            /*false*/ true
+            ));
+
+
+        // res.reset(doFit(
+        //     pdf,
+        //     data,
+        //     ((algo_ == Singles || algo_ == Impact) ? poiList_ : RooArgList()),
+        //     constrainCmdArg,
+        //     false,
+        //     1,
+        //     true,
+        //     false
+        //     ));
+
+
         if (algo_ == Impact && res.get()) {
             // Set the floating parameters back to the best-fit value
             // before we write an entry into the output TTree
@@ -165,6 +196,8 @@ bool MultiDimFit::runSpecific(RooWorkspace *w, RooStats::ModelConfig *mc_s, RooS
         // must still create the NLL
         nll.reset(pdf.createNLL(data, constrainCmdArg, RooFit::Extended(pdf.canBeExtended()), RooFit::Offset(true)));
     }
+
+    if(res.get()) saveResult(*res);
 
     if(w->var("r")) {w->var("r")->Print();}
     if ( loadedSnapshot_ || res.get() || keepFailures_) {
@@ -1011,3 +1044,11 @@ void MultiDimFit::doBox(RooAbsReal &nll, double cl, const char *name, bool commi
     }
     verbose++; // restore verbosity 
 }
+
+
+void MultiDimFit::saveResult(RooFitResult &res) {
+    TFile *fitOut_ = new TFile( "COVMATISHERE.root","recreate" );
+    fitOut_->WriteTObject( &res, "fit" );
+    fitOut_->cd();
+    fitOut_->Close();
+    }
