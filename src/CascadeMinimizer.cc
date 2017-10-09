@@ -45,6 +45,7 @@ CascadeMinimizer::CascadeMinimizer(RooAbsReal &nll, Mode mode, RooRealVar *poi, 
     poisForAutoMax_(0)
     //nuisances_(CascadeMinimizerGlobalConfig::O().nuisanceParameters)
 {
+    std::cout << " [TK] In \"CascadeMinimizer::CascadeMinimizer(...)\" (initialization)" << std::endl;
 }
 
 void CascadeMinimizer::setAutoBounds(const RooArgSet *pois) 
@@ -253,6 +254,12 @@ are freely floating. We should cut them down to find which ones are
 
 bool CascadeMinimizer::minimize(int verbose, bool cascade) 
 {
+
+    fprintf(
+        CloseCoutSentry::trueStdOutGlobal(),
+        " [TK] Now entering CascadeMinimizer::minimize(int verbose, bool cascade) \n"
+        );
+
     static int optConst = runtimedef::get("MINIMIZER_optimizeConst");
     static int rooFitOffset = runtimedef::get("MINIMIZER_rooFitOffset");
     if (runtimedef::get("CMIN_CENSURE")) {
@@ -273,6 +280,12 @@ bool CascadeMinimizer::minimize(int verbose, bool cascade)
     
     RooArgSet nuisances = CascadeMinimizerGlobalConfigs::O().nuisanceParameters;
     if (preFit_ ) {
+
+        fprintf(
+            CloseCoutSentry::trueStdOutGlobal(),
+            " [TK] Entering \"if (preFit_ ) {...}\" conditional \n"
+            );
+
         RooArgSet frozen(nuisances);
         RooStats::RemoveConstantParameters(&frozen);
         utils::setAllConstant(frozen,true);
@@ -314,47 +327,68 @@ bool CascadeMinimizer::minimize(int verbose, bool cascade)
     //bool doMultipleMini = (CascadeMinimizerGlobalConfigs::O().pdfCategories.getSize()>0);
     bool ret = true;
     if (!doMultipleMini){
-    	if (mode_ == Unconstrained && poiOnlyFit_) {
-       	 trivialMinimize(nll_, *poi_, 200);
-    	} 
 
-      ret = improve(verbose, cascade);
+        fprintf(
+            CloseCoutSentry::trueStdOutGlobal(),
+            " [TK] Entering \"if (!doMultipleMini){...}\" conditional \n"
+            );
 
-    }else{
-      // Do the discrete nuisance magic
 
-      // clean parameters before minimization but dont include the pdf indeces of course!
-      RooArgSet reallyCleanParameters;
-      RooArgSet *nllParams=nll_.getParameters((const RooArgSet*)0);
-      nllParams->remove(CascadeMinimizerGlobalConfigs::O().pdfCategories);
-      (nllParams)->snapshot(reallyCleanParameters); // should remove also the nuisance parameters from here!
-      // Before each step, reset the parameters back to their prefit state!
-      
-      if (runShortCombinations) {
-        // Initial fit under current index values
-        improve(verbose, cascade);
-        double minimumNLL  = 10+nll_.getVal();
-        double previousNLL = nll_.getVal();
-        int maxIterations = 15; int iterationCounter=0;
-        for (;iterationCounter<maxIterations;iterationCounter++){
-          iterativeMinimize(minimumNLL,verbose,cascade);
-          if ( fabs(previousNLL-minimumNLL) < discreteMinTol_ ) break; // should be minimizer tolerance
-          previousNLL = minimumNLL ;
+        if (mode_ == Unconstrained && poiOnlyFit_) {
+            trivialMinimize(nll_, *poi_, 200);
+            } 
+
+        ret = improve(verbose, cascade);
+
         }
+    else {
 
-      } else {
+        fprintf( CloseCoutSentry::trueStdOutGlobal(),
+            " [TK] Entering \"else\" w.r.t. \"if (!doMultipleMini){...}\" conditional \n" );
 
-        double minimumNLL = 10+nll_.getVal();
-        std::vector<std::vector<bool>> contIndex;
-        multipleMinimize(reallyCleanParameters,ret,minimumNLL,verbose,cascade,0,contIndex);
-   
-        if (CascadeMinimizerGlobalConfigs::O().pdfCategories.getSize() > 1) {
-           multipleMinimize(reallyCleanParameters,ret,minimumNLL,verbose,cascade,1,contIndex);
-           multipleMinimize(reallyCleanParameters,ret,minimumNLL,verbose,cascade,2,contIndex);
+        // Do the discrete nuisance magic
+
+        // clean parameters before minimization but dont include the pdf indeces of course!
+        RooArgSet reallyCleanParameters;
+        RooArgSet *nllParams=nll_.getParameters((const RooArgSet*)0);
+        nllParams->remove(CascadeMinimizerGlobalConfigs::O().pdfCategories);
+        (nllParams)->snapshot(reallyCleanParameters); // should remove also the nuisance parameters from here!
+        // Before each step, reset the parameters back to their prefit state!
+
+        if (runShortCombinations) {
+
+            fprintf( CloseCoutSentry::trueStdOutGlobal(),
+                " [TK] Entering \"if (runShortCombinations) {...}\" conditional \n" );
+
+            // Initial fit under current index values
+            improve(verbose, cascade);
+            double minimumNLL  = 10+nll_.getVal();
+            double previousNLL = nll_.getVal();
+            int maxIterations = 15; int iterationCounter=0;
+            for (;iterationCounter<maxIterations;iterationCounter++){
+                iterativeMinimize(minimumNLL,verbose,cascade);
+                if ( fabs(previousNLL-minimumNLL) < discreteMinTol_ ) break; // should be minimizer tolerance
+                previousNLL = minimumNLL ;
+                }
+
+            }
+        else {
+
+            fprintf( CloseCoutSentry::trueStdOutGlobal(),
+                " [TK] Entering \"else\" w.r.t. \"if (runShortCombinations) {...}\" conditional \n" );
+
+
+            double minimumNLL = 10+nll_.getVal();
+            std::vector<std::vector<bool>> contIndex;
+            multipleMinimize(reallyCleanParameters,ret,minimumNLL,verbose,cascade,0,contIndex);
+
+            if (CascadeMinimizerGlobalConfigs::O().pdfCategories.getSize() > 1) {
+                multipleMinimize(reallyCleanParameters,ret,minimumNLL,verbose,cascade,1,contIndex);
+                multipleMinimize(reallyCleanParameters,ret,minimumNLL,verbose,cascade,2,contIndex);
+                }
+
+            }
         }
-
-      }
-    }
 
     // Check boundaries
     RooArgSet *nllParams=nll_.getParameters((const RooArgSet*)0);

@@ -2,6 +2,11 @@
 #include <stdexcept>
 #include <cmath>
 
+#include "TFile.h"
+#include "TH2D.h"
+#include "TH1D.h"
+#include "TCanvas.h"
+
 #include "TMath.h"
 #include "RooArgSet.h"
 #include "RooArgList.h"
@@ -45,6 +50,7 @@ bool MultiDimFit::skipInitialFit_ = false;
 float MultiDimFit::maxDeltaNLLForProf_ = 200;
 float MultiDimFit::autoRange_ = -1.0;
 std::string MultiDimFit::fixedPointPOIs_ = "";
+bool MultiDimFit::importanceSampling_ = false;
 
   std::string MultiDimFit::saveSpecifiedFuncs_;
   std::string MultiDimFit::saveSpecifiedIndex_;
@@ -84,6 +90,11 @@ MultiDimFit::MultiDimFit() :
 	("saveSpecifiedIndex",   boost::program_options::value<std::string>(&saveSpecifiedIndex_)->default_value(""), "Save specified indexes/discretes (default = none)")
 	("saveInactivePOI",   boost::program_options::value<bool>(&saveInactivePOI_)->default_value(saveInactivePOI_), "Save inactive POIs in output (1) or not (0, default)")
 	("startFromPreFit",   boost::program_options::value<bool>(&startFromPreFit_)->default_value(startFromPreFit_), "Start each point of the likelihood scan from the pre-fit values")
+
+        ( "importanceSampling",
+          boost::program_options::value<std::string>()->default_value("none"),
+          "Text"
+          )
        ;
 }
 
@@ -119,6 +130,28 @@ void MultiDimFit::applyOptions(const boost::program_options::variables_map &vm)
     hasMaxDeltaNLLForProf_ = !vm["maxDeltaNLLForProf"].defaulted();
     loadedSnapshot_ = !vm["snapshotName"].defaulted();
     savingSnapshot_ = (!loadedSnapshot_) && vm.count("saveWorkspace");
+
+    std::string importanceSamplingOption = vm["importanceSampling"].as<std::string>();
+    importanceSampling_ = ( importanceSamplingOption != "none" );
+    if (importanceSampling_){
+            if (importanceSamplingOption.find(":") != std::string::npos) {
+                std::string importanceSamplingFile, importanceSamplingHistogram;
+                switch (std::count(importanceSamplingOption.begin(), importanceSamplingOption.end(), ':')) {
+                    case 1:
+                        importanceSamplingFile = importanceSamplingOption.substr(                  0, importanceSamplingOption.find(":"));
+                        importanceSamplingHistogram    = importanceSamplingOption.substr(importanceSamplingOption.find(":")+1, std::string::npos);
+                        if (verbose) std::cout << "Will read importanceSampling histogram '" << importanceSamplingHistogram << "' from file '" << importanceSamplingFile << "'" << std::endl;
+                        break;
+                    default:
+                        throw std::invalid_argument("The importanceSampling must be a rootfile.root:TH2_name");
+                    }
+                TFile *importanceSamplingFp = TFile::Open( importanceSamplingFile.c_str() );
+                importanceSamplingTH2D_ = (TH2D*)importanceSamplingFp->Get( importanceSamplingHistogram.c_str() );
+                importanceSamplingTH2D_->SetDirectory(0);
+                importanceSamplingFp->Close();
+                }
+        }
+
 }
 
 bool MultiDimFit::runSpecific(RooWorkspace *w, RooStats::ModelConfig *mc_s, RooStats::ModelConfig *mc_b, RooAbsData &data, double &limit, double &limitErr, const double *hint) { 
@@ -154,7 +187,9 @@ bool MultiDimFit::runSpecific(RooWorkspace *w, RooStats::ModelConfig *mc_s, RooS
     std::auto_ptr<RooFitResult> res;
     if (verbose <= 3) RooAbsReal::setEvalErrorLoggingMode(RooAbsReal::CountErrors);
     if ( !skipInitialFit_){
+        std::cout << " [TK] MultiDimFit.cc: Right before doFit call" << std::endl;
         res.reset(doFit(pdf, data, ((algo_ == Singles || algo_ == Impact) ? poiList_ : RooArgList()), constrainCmdArg, false, 1, true, false));
+        std::cout << " [TK] MultiDimFit.cc: Right after doFit call" << std::endl;
         if (algo_ == Impact && res.get()) {
             // Set the floating parameters back to the best-fit value
             // before we write an entry into the output TTree
@@ -512,6 +547,7 @@ void MultiDimFit::doGrid(RooWorkspace *w, RooAbsReal &nll)
 		x = pmin[0] + (ireverse+0.5)*(pmax[0]-pmin[0])/points_; 
 	    }
 
+            std::cout << " [TK] In MultiDimFit::doGrid(): squareDistPoiStep_ = " << squareDistPoiStep_ << std::endl;
 	    if (squareDistPoiStep_){
 		// distance between steps goes as ~square of distance from middle or range (could this be changed to from best fit value?)
 		double phalf = (pmax[0]-pmin[0])/2;
@@ -559,17 +595,92 @@ void MultiDimFit::doGrid(RooWorkspace *w, RooAbsReal &nll)
         }
     } else if (n == 2) {
         unsigned int sqrn = ceil(sqrt(double(points_)));
-        unsigned int ipoint = 0, nprint = ceil(0.005*sqrn*sqrn);
         RooAbsReal::setEvalErrorLoggingMode(RooAbsReal::CountErrors);
         CloseCoutSentry sentry(verbose < 2);
+        fprintf(
+                sentry.trueStdOut(),
+                " [TK] Entering doGrid n==2 conditional"
+                );
+
+        Double_t *pQuantiles = 0;
+        Double_t *xQuantiles = 0;
+        Double_t *yQuantiles = 0;
+        if (importanceSampling_) {
+
+                TH1D *xProjection = importanceSamplingTH2D_->ProjectionX();
+                TH1D *yProjection = importanceSamplingTH2D_->ProjectionY();
+
+                // TCanvas *c = new TCanvas( "c", "c", 1000, 800 );
+                // xProjection->Draw();
+                // c->SaveAs( "xProjection.pdf" );
+                // yProjection->Draw();
+                // c->SaveAs( "yProjection.pdf" );
+                // delete c;
+
+                pQuantiles = new Double_t[sqrn];
+                xQuantiles = new Double_t[sqrn];
+                yQuantiles = new Double_t[sqrn];
+
+                Float_t halfBinWidth = 0.5 / Float_t(sqrn) ;
+                for (unsigned int i=0;i<sqrn;i++){
+                        pQuantiles[i] = Float_t(i+1)/sqrn - halfBinWidth ;
+                        }
+
+                xProjection->GetQuantiles( sqrn, xQuantiles, pQuantiles );
+                yProjection->GetQuantiles( sqrn, yQuantiles, pQuantiles );
+
+                fprintf( sentry.trueStdOut(), "\nFound quantiles:" );
+                for( unsigned int iq = 0 ; iq < sqrn ; iq++ ){
+                        // std::cout << "iq = " << iq << " , pQuantiles = " << pQuantiles[iq] << " , xQuantiles = " << xQuantiles[iq] << " , yQuantiles = " << yQuantiles[iq] << std::endl;
+                        fprintf(
+                                sentry.trueStdOut(),
+                                "iq = %d, pQuantiles[iq] = %f, xQuantiles[iq] = %f, yQuantiles[iq] = %f \n",
+                                iq, pQuantiles[iq], xQuantiles[iq], yQuantiles[iq]
+                                );
+                        }
+
+                }
+
+
+        unsigned int ipoint = 0, nprint = ceil(0.005*sqrn*sqrn);
         double deltaX =  (pmax[0]-pmin[0])/sqrn, deltaY = (pmax[1]-pmin[1])/sqrn;
+
+        nprint = 1;
+
         for (unsigned int i = 0; i < sqrn; ++i) {
             for (unsigned int j = 0; j < sqrn; ++j, ++ipoint) {
                 if (ipoint < firstPoint_) continue;
                 if (ipoint > lastPoint_)  break;
+
                 *params = snap; 
-                double x =  pmin[0] + (i+0.5)*deltaX; 
-                double y =  pmin[1] + (j+0.5)*deltaY; 
+                
+                double x;
+                double y;
+
+                if (importanceSampling_) {
+                        x = (double)xQuantiles[i];
+                        y = (double)yQuantiles[j];
+                        }
+                else if (squareDistPoiStep_){
+                        double icenter = 0.5 * ( sqrn - 1 );
+                        if ( i < icenter ){
+                                x = p0[0] - TMath::Power( ( i - icenter ) / icenter, 2 ) * ( p0[0] - pmin[0] );
+                                }
+                        else {
+                                x = p0[0] + TMath::Power( ( i - icenter ) / icenter, 2 ) * ( pmax[0] - p0[0] );
+                                }
+                        if ( j < icenter ){
+                                y = p0[1] - TMath::Power( ( j - icenter ) / icenter, 2 ) * ( p0[1] - pmin[1] );
+                                }
+                        else {
+                                y = p0[1] + TMath::Power( ( j - icenter ) / icenter, 2 ) * ( pmax[1] - p0[1] );
+                                }
+                        }
+                else{
+                        x = pmin[0] + (i+0.5)*deltaX; 
+                        y = pmin[1] + (j+0.5)*deltaY; 
+                        }
+
                 if (verbose && (ipoint % nprint == 0)) {
                          fprintf(sentry.trueStdOut(), "Point %d/%d, (i,j) = (%d,%d), %s = %f, %s = %f\n",
                                         ipoint,sqrn*sqrn, i,j, poiVars_[0]->GetName(), x, poiVars_[1]->GetName(), y);
@@ -677,6 +788,9 @@ void MultiDimFit::doGrid(RooWorkspace *w, RooAbsReal &nll)
                 }
             }
         }
+        delete [] pQuantiles;
+        delete [] xQuantiles;
+        delete [] yQuantiles;
 
     } else { // Use utils routine if n > 2 
 

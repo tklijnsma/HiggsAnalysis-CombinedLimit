@@ -10,6 +10,7 @@
  */
 #include "HiggsAnalysis/CombinedLimit/interface/FitterAlgoBase.h"
 #include <RooRealVar.h>
+#include "TH2D.h"
 #include <vector>
 
 class MultiDimFit : public FitterAlgoBase {
@@ -49,6 +50,8 @@ protected:
   static float autoRange_;
   static bool  startFromPreFit_;
   static std::string fixedPointPOIs_;
+  static bool importanceSampling_;
+  TH2D *importanceSamplingTH2D_;
 
   static std::string saveSpecifiedFuncs_;
   static std::string saveSpecifiedNuis_;
