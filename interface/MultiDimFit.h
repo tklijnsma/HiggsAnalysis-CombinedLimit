@@ -52,6 +52,7 @@ protected:
   static std::string fixedPointPOIs_;
   static bool importanceSampling_;
   TH2D *importanceSamplingTH2D_;
+  static bool computeCovarianceMatrix_;
 
   static std::string saveSpecifiedFuncs_;
   static std::string saveSpecifiedNuis_;
@@ -84,6 +85,8 @@ protected:
   // utilities
   /// for each RooRealVar, set a range 'box' from the PL profiling all other parameters
   void doBox(RooAbsReal &nll, double cl, const char *name="box", bool commitPoints=true) ;
+
+  void saveCovarianceMatrix(RooFitResult &res);
 };
 
 

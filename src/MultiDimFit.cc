@@ -51,6 +51,7 @@ float MultiDimFit::maxDeltaNLLForProf_ = 200;
 float MultiDimFit::autoRange_ = -1.0;
 std::string MultiDimFit::fixedPointPOIs_ = "";
 bool MultiDimFit::importanceSampling_ = false;
+bool MultiDimFit::computeCovarianceMatrix_ = false;
 
   std::string MultiDimFit::saveSpecifiedFuncs_;
   std::string MultiDimFit::saveSpecifiedIndex_;
@@ -91,6 +92,7 @@ MultiDimFit::MultiDimFit() :
 	("saveInactivePOI",   boost::program_options::value<bool>(&saveInactivePOI_)->default_value(saveInactivePOI_), "Save inactive POIs in output (1) or not (0, default)")
 	("startFromPreFit",   boost::program_options::value<bool>(&startFromPreFit_)->default_value(startFromPreFit_), "Start each point of the likelihood scan from the pre-fit values")
 
+        ("computeCovarianceMatrix",   boost::program_options::value<bool>(&computeCovarianceMatrix_)->default_value(computeCovarianceMatrix_), "Compute also the covariance matrix (do not use with algo=grid)")
         ( "importanceSampling",
           boost::program_options::value<std::string>()->default_value("none"),
           "Text"
@@ -188,7 +190,7 @@ bool MultiDimFit::runSpecific(RooWorkspace *w, RooStats::ModelConfig *mc_s, RooS
     if (verbose <= 3) RooAbsReal::setEvalErrorLoggingMode(RooAbsReal::CountErrors);
     if ( !skipInitialFit_){
         std::cout << " [TK] MultiDimFit.cc: Right before doFit call" << std::endl;
-        res.reset(doFit(pdf, data, ((algo_ == Singles || algo_ == Impact) ? poiList_ : RooArgList()), constrainCmdArg, false, 1, true, false));
+        res.reset(doFit(pdf, data, ((algo_ == Singles || algo_ == Impact) ? poiList_ : RooArgList()), constrainCmdArg, computeCovarianceMatrix_, 1, true, computeCovarianceMatrix_));
         std::cout << " [TK] MultiDimFit.cc: Right after doFit call" << std::endl;
         if (algo_ == Impact && res.get()) {
             // Set the floating parameters back to the best-fit value
@@ -220,6 +222,11 @@ bool MultiDimFit::runSpecific(RooWorkspace *w, RooStats::ModelConfig *mc_s, RooS
 	//}
     }
    
+    // Save covariance matrix if it was computed
+    if( computeCovarianceMatrix_ && res.get() ){
+        saveCovarianceMatrix(*res);
+        }
+
     //set snapshot for best fit
     if (savingSnapshot_) w->saveSnapshot("MultiDimFit",w->allVars());
     
@@ -1125,3 +1132,14 @@ void MultiDimFit::doBox(RooAbsReal &nll, double cl, const char *name, bool commi
     }
     verbose++; // restore verbosity 
 }
+
+
+void MultiDimFit::saveCovarianceMatrix(RooFitResult &res) {
+        // TFile *fitOut_ = new TFile( "COVMATISHERE.root","recreate" );
+        // fitOut_->WriteTObject( &res, "fit" );
+        // fitOut_->cd();
+        // fitOut_->Close();
+        res.Print();
+        outputFile->WriteTObject( &res, "fit" );
+        outputFile->cd();
+        } 
