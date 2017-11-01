@@ -189,10 +189,10 @@ class SMHiggsBuilder:
         for K, DS in THU_GROUPS:
             self.modelBuilder.doVar("HiggsDecayWidthTHU_%s[-7,7]" % K)
         for D in ALL_HIGGS_DECAYS:
-            #print "For decay %s: " % D,
+            print "For decay %s: " % D,
             if D not in widthUncertainties:
                 self.modelBuilder.doVar("HiggsDecayWidth_UncertaintyScaling_%s[1]" % D)
-                #print " no uncertainties."
+                print " no uncertainties."
                 continue
             pnorm = ROOT.ProcessNormalization("HiggsDecayWidth_UncertaintyScaling_%s" %D, "")
             for K in widthUncertaintiesKeys:
@@ -205,9 +205,9 @@ class SMHiggsBuilder:
                     if var == None: continue
                 else:
                     var = self.modelBuilder.out.var("param_%s" % K)
-                #print " [ %+.1f%% from %s ]  " % (widthUncertainties[D][K]*100, var.GetName()),
+                print " [ %+.1f%% from %s ]  " % (widthUncertainties[D][K]*100, var.GetName()),
                 pnorm.addLogNormal(exp(widthUncertainties[D][K]), var)
-            #print "."
+            print "."
             self.modelBuilder.out._import(pnorm)
     def dump(self,name,xvar,values,logfile):
         xv = self.modelBuilder.out.var(xvar)
