@@ -110,8 +110,10 @@ class CascadeMinimizerGlobalConfigs{
 	  //RooCategory* x;
 	  RooListProxy pdfCategories; 
 	  RooListProxy nuisanceParameters; 
+	  RooListProxy allFloatingParameters; 
 	  RooListProxy parametersOfInterest; 
- 
+	  RooListProxy allRooMultiPdfParams;
+
 	  static CascadeMinimizerGlobalConfigs& O(){
 
 		static CascadeMinimizerGlobalConfigs singleton;
