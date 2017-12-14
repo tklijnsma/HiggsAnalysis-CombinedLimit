@@ -53,6 +53,10 @@ std::string MultiDimFit::fixedPointPOIs_ = "";
 bool MultiDimFit::importanceSampling_ = false;
 bool MultiDimFit::computeCovarianceMatrix_ = false;
 
+bool MultiDimFit::doPointsDefined_ = false;
+std::string MultiDimFit::doPoints_;
+std::vector<int>  MultiDimFit::doPointsList_;
+
   std::string MultiDimFit::saveSpecifiedFuncs_;
   std::string MultiDimFit::saveSpecifiedIndex_;
   std::string MultiDimFit::saveSpecifiedNuis_;
@@ -97,6 +101,7 @@ MultiDimFit::MultiDimFit() :
           boost::program_options::value<std::string>()->default_value("none"),
           "Text"
           )
+        ("doPoints", boost::program_options::value<std::string>(&doPoints_)->default_value(""), "Fit only these points (e.g. --doPoints 11,13,20,21" )
        ;
 }
 
@@ -154,6 +159,18 @@ void MultiDimFit::applyOptions(const boost::program_options::variables_map &vm)
                 }
         }
 
+
+    if(doPoints_!=""){
+        doPointsDefined_ = true;
+        std::cout << " [TK] Using only the following points:" << std::endl ;
+        std::stringstream ss( doPoints_ );
+        int tmpInt;
+        while( ss >> tmpInt ) {
+                std::cout << tmpInt << std::endl;
+                doPointsList_.push_back( tmpInt );
+                if (ss.peek() == ',') ss.ignore();
+                }
+        }
 }
 
 bool MultiDimFit::runSpecific(RooWorkspace *w, RooStats::ModelConfig *mc_s, RooStats::ModelConfig *mc_b, RooAbsData &data, double &limit, double &limitErr, const double *hint) { 
@@ -606,7 +623,7 @@ void MultiDimFit::doGrid(RooWorkspace *w, RooAbsReal &nll)
         CloseCoutSentry sentry(verbose < 2);
         fprintf(
                 sentry.trueStdOut(),
-                " [TK] Entering doGrid n==2 conditional"
+                " [TK] Entering doGrid n==2 conditional\n"
                 );
 
         Double_t *pQuantiles = 0;
@@ -658,6 +675,10 @@ void MultiDimFit::doGrid(RooWorkspace *w, RooAbsReal &nll)
             for (unsigned int j = 0; j < sqrn; ++j, ++ipoint) {
                 if (ipoint < firstPoint_) continue;
                 if (ipoint > lastPoint_)  break;
+
+                if (doPointsDefined_){
+                        if ( !(std::find( doPointsList_.begin(), doPointsList_.end(), ipoint ) != doPointsList_.end() )) continue ;
+                        }
 
                 *params = snap; 
                 

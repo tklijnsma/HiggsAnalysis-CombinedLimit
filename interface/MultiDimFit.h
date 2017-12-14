@@ -53,6 +53,10 @@ protected:
   static bool importanceSampling_;
   TH2D *importanceSamplingTH2D_;
   static bool computeCovarianceMatrix_;
+  
+  static bool doPointsDefined_;
+  static std::string doPoints_;
+  static std::vector<int> doPointsList_;
 
   static std::string saveSpecifiedFuncs_;
   static std::string saveSpecifiedNuis_;
