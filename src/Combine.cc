@@ -49,6 +49,11 @@
 #include <boost/program_options.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
+// [ADDED BY THOMAS: Copied from upstream repo]
+#include <boost/algorithm/string.hpp> 
+#include <regex>
+// [END OF ADDED BY THOMAS]
+
 #include "HiggsAnalysis/CombinedLimit/interface/LimitAlgo.h"
 #include "HiggsAnalysis/CombinedLimit/interface/utils.h"
 #include "HiggsAnalysis/CombinedLimit/interface/CloseCoutSentry.h"
@@ -546,6 +551,41 @@ void Combine::run(TString hlfFile, const std::string &dataset, double &limit, do
   }
   
   if (freezeNuisances_ != "") {
+
+      std::cout<<"List of all nuisances:"<<std::endl;
+      std::auto_ptr<TIterator> iter(nuisances->createIterator());
+      for (RooAbsArg *a = (RooAbsArg*) iter->Next(); a != 0; a = (RooAbsArg*) iter->Next()) {
+        const std::string &nuisName = a->GetName();
+        std::cout<<"    "<<nuisName<<std::endl;
+        }
+
+      // [ADDED BY THOMAS - Copied from upstream repo]
+      // expand regexps          
+      while (freezeNuisances_.find("rgx{") != std::string::npos) {          
+          size_t pos1 = freezeNuisances_.find("rgx{");
+          size_t pos2 = freezeNuisances_.find("}",pos1);
+          std::string prestr = freezeNuisances_.substr(0,pos1);
+          std::string poststr = freezeNuisances_.substr(pos2+1,freezeNuisances_.size()-pos2);
+          std::string reg_esp = freezeNuisances_.substr(pos1+4,pos2-pos1-4);
+          
+          std::cout<<"interpreting "<<reg_esp<<" as regex "<<std::endl;
+          std::regex rgx( reg_esp, std::regex::ECMAScript);
+          
+          std::string matchingParams="";
+          std::auto_ptr<TIterator> iter(nuisances->createIterator());
+          for (RooAbsArg *a = (RooAbsArg*) iter->Next(); a != 0; a = (RooAbsArg*) iter->Next()) {
+              const std::string &target = a->GetName();
+              std::smatch match;
+              if (std::regex_match(target, match, rgx)) {
+                  matchingParams = matchingParams + target + ",";
+                  std::cout<<"    "<<target<<" matches this regexp"<<std::endl;
+              }
+          }
+          freezeNuisances_ = prestr+matchingParams+poststr;
+          freezeNuisances_ = boost::replace_all_copy(freezeNuisances_, ",,", ","); 
+      }
+      // [END OF ADDED BY THOMAS - Copied from upstream repo]
+
       RooArgSet toFreeze((freezeNuisances_=="all")?*nuisances:(w->argSet(freezeNuisances_.c_str())));
       if (verbose > 0) std::cout << "Freezing the following nuisance parameters: "; toFreeze.Print("");
       utils::setAllConstant(toFreeze, true);
