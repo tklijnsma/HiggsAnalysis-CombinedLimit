@@ -56,6 +56,10 @@ protected:
   static std::string fixedPointPOIs_;
   static float centeredRange_;
 
+  static bool doPointsDefined_;
+  static std::string doPoints_;
+  static std::vector<int> doPointsList_;
+
   static std::string saveSpecifiedFuncs_;
   static std::string saveSpecifiedNuis_;
   static std::string saveSpecifiedIndex_;

@@ -51,6 +51,9 @@ float MultiDimFit::autoRange_ = -1.0;
 std::string MultiDimFit::fixedPointPOIs_ = "";
 float MultiDimFit::centeredRange_ = -1.0;
 
+bool MultiDimFit::doPointsDefined_ = false;
+std::string MultiDimFit::doPoints_;
+std::vector<int>  MultiDimFit::doPointsList_;
 
 std::string MultiDimFit::saveSpecifiedFuncs_;
 std::string MultiDimFit::saveSpecifiedIndex_;
@@ -93,6 +96,7 @@ MultiDimFit::MultiDimFit() :
   ("startFromPreFit",   boost::program_options::value<bool>(&startFromPreFit_)->default_value(startFromPreFit_), "Start each point of the likelihood scan from the pre-fit values")
   ("alignEdges",   boost::program_options::value<bool>(&alignEdges_)->default_value(alignEdges_), "Align the grid points such that the endpoints of the ranges are included")
 	("saveFitResult",  "Save RooFitResult to muiltidimfit.root")
+        ("doPoints", boost::program_options::value<std::string>(&doPoints_)->default_value(""), "Fit only these points (e.g. --doPoints 11,13,20,21" )
       ;
 }
 
@@ -130,6 +134,18 @@ void MultiDimFit::applyOptions(const boost::program_options::variables_map &vm)
     savingSnapshot_ = (!loadedSnapshot_) && vm.count("saveWorkspace");
     name_ = vm["name"].defaulted() ?  std::string() : vm["name"].as<std::string>();
     saveFitResult_ = (vm.count("saveFitResult") > 0);
+
+    if(doPoints_!=""){
+        doPointsDefined_ = true;
+        std::cout << "Will fit only the following points:" << std::endl ;
+        std::stringstream ss( doPoints_ );
+        int tmpInt;
+        while( ss >> tmpInt ) {
+                std::cout << tmpInt << std::endl;
+                doPointsList_.push_back( tmpInt );
+                if (ss.peek() == ',') ss.ignore();
+                }
+        }
 }
 
 bool MultiDimFit::runSpecific(RooWorkspace *w, RooStats::ModelConfig *mc_s, RooStats::ModelConfig *mc_b, RooAbsData &data, double &limit, double &limitErr, const double *hint) { 
@@ -552,6 +568,10 @@ void MultiDimFit::doGrid(RooWorkspace *w, RooAbsReal &nll) {
     for (unsigned int i = 0; i < points_; ++i) {
       if (i < firstPoint_) continue;
       if (i > lastPoint_)  break;
+      if (doPointsDefined_){
+          if ( !(std::find( doPointsList_.begin(), doPointsList_.end(), i ) != doPointsList_.end() )) continue ;
+          }
+
       double x = pmin[0] + (i + xspacingOffset) * xspacing;
       // If we're aligning with the edges and this is the last point,
       // set x to pmax[0] exactly
@@ -632,6 +652,10 @@ void MultiDimFit::doGrid(RooWorkspace *w, RooAbsReal &nll) {
         for (unsigned int j = 0; j < sqrn; ++j, ++ipoint) {
           if (ipoint < firstPoint_) continue;
           if (ipoint > lastPoint_)  break;
+          if (doPointsDefined_){
+            if ( !(std::find( doPointsList_.begin(), doPointsList_.end(), ipoint ) != doPointsList_.end() )) continue ;
+            }
+
           *params = snap;
           double x =  pmin[0] + (i + spacingOffset) * deltaX;
           double y =  pmin[1] + (j + spacingOffset) * deltaY;
