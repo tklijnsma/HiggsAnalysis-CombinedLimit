@@ -653,7 +653,13 @@ void MultiDimFit::doGrid(RooWorkspace *w, RooAbsReal &nll) {
           if (ipoint < firstPoint_) continue;
           if (ipoint > lastPoint_)  break;
           if (doPointsDefined_){
-            if ( !(std::find( doPointsList_.begin(), doPointsList_.end(), ipoint ) != doPointsList_.end() )) continue ;
+            if ( !(std::find( doPointsList_.begin(), doPointsList_.end(), ipoint ) != doPointsList_.end() )) {
+                fprintf(sentry.trueStdOut(),
+                    "Skipping point %d/%d, (i,j) = (%d,%d) because not in doPoints\n",
+                    ipoint, sqrn * sqrn, i, j
+                    );
+                continue;
+                };
             }
 
           *params = snap;
