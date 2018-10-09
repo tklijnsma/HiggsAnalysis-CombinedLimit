@@ -1058,7 +1058,6 @@ void Combine::addDiscreteNuisances(RooWorkspace *w){
           if (cat && (!cat->isConstant() || runtimedef::get("ADD_DISCRETE_FALLBACK"))) {
 	    if (verbose){
               std::cout << "Adding discrete " << cat->GetName() << "\n";
-      	      if (verbose) Logger::instance().log(std::string(Form("Combine.cc: %d -- Adding discrete %s ",__LINE__,cat->GetName())),Logger::kLogLevelInfo,__func__);
 	    }
             (CascadeMinimizerGlobalConfigs::O().pdfCategories).add(*arg);
 
@@ -1076,7 +1075,6 @@ void Combine::addDiscreteNuisances(RooWorkspace *w){
          if (cat/* && !cat->isConstant()*/) {
 	    if (verbose){
               std::cout << "Adding discrete " << cat->GetName() << "\n";
-      	      if (verbose) Logger::instance().log(std::string(Form("Combine.cc: %d -- Adding discrete %s ",__LINE__,cat->GetName())),Logger::kLogLevelInfo,__func__);
 	    }
             (CascadeMinimizerGlobalConfigs::O().pdfCategories).add(*arg);
          }
