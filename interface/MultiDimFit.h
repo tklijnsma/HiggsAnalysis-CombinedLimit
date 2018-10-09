@@ -59,6 +59,7 @@ protected:
   static bool doPointsDefined_;
   static std::string doPoints_;
   static std::vector<int> doPointsList_;
+  static bool computeCovarianceMatrix_;
 
   static std::string saveSpecifiedFuncs_;
   static std::string saveSpecifiedNuis_;
@@ -93,6 +94,7 @@ protected:
   void doBox(RooAbsReal &nll, double cl, const char *name="box", bool commitPoints=true) ;
   /// save a file with the RooFitResult inside
   void saveResult(RooFitResult &res);
+  void saveCovarianceMatrix(RooFitResult &res);
 };
 
 

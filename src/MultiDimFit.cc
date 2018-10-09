@@ -54,6 +54,7 @@ float MultiDimFit::centeredRange_ = -1.0;
 bool MultiDimFit::doPointsDefined_ = false;
 std::string MultiDimFit::doPoints_;
 std::vector<int>  MultiDimFit::doPointsList_;
+bool MultiDimFit::computeCovarianceMatrix_ = false;
 
 std::string MultiDimFit::saveSpecifiedFuncs_;
 std::string MultiDimFit::saveSpecifiedIndex_;
@@ -97,6 +98,7 @@ MultiDimFit::MultiDimFit() :
   ("alignEdges",   boost::program_options::value<bool>(&alignEdges_)->default_value(alignEdges_), "Align the grid points such that the endpoints of the ranges are included")
 	("saveFitResult",  "Save RooFitResult to muiltidimfit.root")
         ("doPoints", boost::program_options::value<std::string>(&doPoints_)->default_value(""), "Fit only these points (e.g. --doPoints 11,13,20,21" )
+        ("computeCovarianceMatrix",   boost::program_options::value<bool>(&computeCovarianceMatrix_)->default_value(computeCovarianceMatrix_), "Compute also the covariance matrix (do not use with algo=grid)")
       ;
 }
 
@@ -182,7 +184,7 @@ bool MultiDimFit::runSpecific(RooWorkspace *w, RooStats::ModelConfig *mc_s, RooS
     if (verbose <= 3) RooAbsReal::setEvalErrorLoggingMode(RooAbsReal::CountErrors);
     bool doHesse = (algo_ == Singles || algo_ == Impact) || (saveFitResult_) ;
     if ( !skipInitialFit_){
-        res.reset(doFit(pdf, data, (doHesse ? poiList_ : RooArgList()), constrainCmdArg, false, 1, true, false));
+        res.reset(doFit(pdf, data, (doHesse ? poiList_ : RooArgList()), constrainCmdArg, computeCovarianceMatrix_, 1, true, computeCovarianceMatrix_));
         if (!res.get()) {
             std::cout << "\n " <<std::endl;
             std::cout << "\n ---------------------------" <<std::endl;
@@ -228,6 +230,11 @@ bool MultiDimFit::runSpecific(RooWorkspace *w, RooStats::ModelConfig *mc_s, RooS
 	//}
     }
    
+    // Save covariance matrix if it was computed
+    if( computeCovarianceMatrix_ && res.get() ){
+        saveCovarianceMatrix(*res);
+        }
+
     //set snapshot for best fit
     if (savingSnapshot_) w->saveSnapshot("MultiDimFit",w->allVars());
     
@@ -1120,3 +1127,9 @@ void MultiDimFit::saveResult(RooFitResult &res) {
     fitOut->cd();
     fitOut.release()->Close();
 }
+
+void MultiDimFit::saveCovarianceMatrix(RooFitResult &res) {
+    res.Print();
+    outputFile->WriteTObject( &res, "fit" );
+    outputFile->cd();
+    }
